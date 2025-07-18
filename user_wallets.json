@@ -1,0 +1,37 @@
+{
+  "902625062451036170": {
+    "balances": {
+      "BTC": "0",
+      "LTC": "0.00333958"
+    },
+    "transactions": [
+      {
+        "id": "80b8b758",
+        "type": "deposit",
+        "crypto": "LTC",
+        "amount": "0.00166979",
+        "timestamp": "2025-07-18T02:21:16.128012",
+        "battle_id": null,
+        "notes": "Deposit to LeZozDSMB7oyv1uLfhs1e54kZtAifLFA2Y"
+      },
+      {
+        "id": "859d56f8",
+        "type": "deposit",
+        "crypto": "LTC",
+        "amount": "0.00098251",
+        "timestamp": "2025-07-18T01:29:11.662096",
+        "battle_id": null,
+        "notes": "Deposit to LeZozDSMB7oyv1uLfhs1e54kZtAifLFA2Y"
+      },
+      {
+        "id": "f4e26bfe",
+        "type": "deposit",
+        "crypto": "LTC",
+        "amount": "0.00068728",
+        "timestamp": "2025-07-18T01:16:45.556360",
+        "battle_id": null,
+        "notes": "Deposit to LeZozDSMB7oyv1uLfhs1e54kZtAifLFA2Y"
+      }
+    ]
+  }
+}

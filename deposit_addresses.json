@@ -1,0 +1,19 @@
+{
+  "902625062451036170": {
+    "LTC": {
+      "address": "LeZozDSMB7oyv1uLfhs1e54kZtAifLFA2Y",
+      "private": "e00690bfb7b5cd6a36fe9d7678129b0d78b06e987324bdac74622fe3fc102d76",
+      "last_balance": 0.00166979
+    }
+  },
+  "1017865468855455854": {
+    "LTC": {
+      "address": "LVLC8LERvd5sT42K11ZczTXwmqhdNZQo5e",
+      "private": "ffdec7a39ac6114d314b1fc1f0a5e21605c62deb3bcf20a179d64a7504e3a843"
+    },
+    "BTC": {
+      "address": "1FWDcm5iPU2NupuAijHL1mrCYXdFftPLvC",
+      "private": "04bf8b6e16f3547d1f4ebad2b771172b6ebc9ed0c51a6feb5e5748302cd36bed"
+    }
+  }
+}
