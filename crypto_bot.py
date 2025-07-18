@@ -10,6 +10,10 @@ import uuid
 from decimal import Decimal, getcontext
 import requests
 import time
+import hashlib
+import binascii
+from ecdsa import SigningKey, SECP256k1
+from ecdsa.util import sigencode_der
 
 # ===== CONFIGURATION =====
 BET_CHANNEL_ID = 1394715225948688537
@@ -59,6 +63,75 @@ CRYPTOCURRENCIES = {
 # Wallet storage
 WALLET_FILE = "user_wallets.json"
 # ===== END CONFIGURATION =====
+
+# ===== CRYPTOGRAPHIC FUNCTIONS =====
+def private_key_to_public_key(private_key_hex):
+    """Convert a private key to compressed public key"""
+    try:
+        # Remove '0x' prefix if present
+        if private_key_hex.startswith('0x'):
+            private_key_hex = private_key_hex[2:]
+        
+        # Convert hex to bytes
+        private_key_bytes = binascii.unhexlify(private_key_hex)
+        
+        # Create signing key
+        signing_key = SigningKey.from_string(private_key_bytes, curve=SECP256k1)
+        
+        # Get public key point
+        public_key_point = signing_key.get_verifying_key().pubkey.point
+        
+        # Convert to compressed format
+        x = public_key_point.x()
+        y = public_key_point.y()
+        
+        # Determine if y is even or odd for compression
+        prefix = b'\x02' if y % 2 == 0 else b'\x03'
+        
+        # Convert x coordinate to 32-byte big-endian
+        x_bytes = x.to_bytes(32, 'big')
+        
+        # Combine prefix and x coordinate
+        compressed_pubkey = prefix + x_bytes
+        
+        return binascii.hexlify(compressed_pubkey).decode('utf-8')
+    except Exception as e:
+        print(f"Error converting private key to public key: {str(e)}")
+        return None
+
+def sign_transaction_data(private_key_hex, tosign_hex):
+    """Sign transaction data using ECDSA"""
+    try:
+        # Store original private key for public key generation
+        original_private_key = private_key_hex
+        
+        # Remove '0x' prefix if present
+        if private_key_hex.startswith('0x'):
+            private_key_hex = private_key_hex[2:]
+        if tosign_hex.startswith('0x'):
+            tosign_hex = tosign_hex[2:]
+        
+        # Convert hex to bytes
+        private_key_bytes = binascii.unhexlify(private_key_hex)
+        tosign_bytes = binascii.unhexlify(tosign_hex)
+        
+        # Create signing key
+        signing_key = SigningKey.from_string(private_key_bytes, curve=SECP256k1)
+        
+        # Sign the data using DER encoding
+        signature = signing_key.sign(tosign_bytes, sigencode=sigencode_der)
+        
+        # Convert signature to hex
+        signature_hex = binascii.hexlify(signature).decode('utf-8')
+        
+        # Get corresponding public key using original private key
+        public_key_hex = private_key_to_public_key(original_private_key)
+        
+        return signature_hex, public_key_hex
+    except Exception as e:
+        print(f"Error signing transaction data: {str(e)}")
+        return None, None
+# ===== END CRYPTOGRAPHIC FUNCTIONS =====
 
 # Configure decimal precision
 getcontext().prec = 8
@@ -314,7 +387,7 @@ async def send_deposit_notifications():
                 print(f"Error sending deposit notification: {str(e)}")
 
 def send_withdrawal(user_id, crypto, address, amount):
-    """Send cryptocurrency using BlockCypher"""
+    """Send cryptocurrency using BlockCypher with proper cryptographic signatures"""
     if crypto not in deposit_addresses.get(str(user_id), {}):
         return None, "No deposit address found for user"
     
@@ -341,11 +414,26 @@ def send_withdrawal(user_id, crypto, address, amount):
         response.raise_for_status()
         data = response.json()
         
-        # Sign transaction
+        # Check if we have data to sign
+        if 'tosign' not in data or not data['tosign']:
+            return None, "No transaction data to sign"
+        
+        # Sign transaction with proper cryptographic signatures
         data['signatures'] = []
+        data['pubkeys'] = []
+        
         for to_sign in data['tosign']:
-            # In production, use proper signing library
-            data['signatures'].append(f"placeholder_signature_for_{to_sign}")
+            signature_hex, public_key_hex = sign_transaction_data(private_key, to_sign)
+            
+            if signature_hex is None or public_key_hex is None:
+                return None, "Failed to sign transaction data"
+            
+            data['signatures'].append(signature_hex)
+            data['pubkeys'].append(public_key_hex)
+        
+        # Verify we have the same number of signatures and public keys as tosign items
+        if len(data['signatures']) != len(data['tosign']) or len(data['pubkeys']) != len(data['tosign']):
+            return None, "Signature count mismatch"
         
         # Send transaction
         send_url = f"{BLOCKCYPHER_API_URL}{network}/txs/send?token={BLOCKCYPHER_API_KEY}"
@@ -353,7 +441,22 @@ def send_withdrawal(user_id, crypto, address, amount):
         send_response.raise_for_status()
         
         tx_data = send_response.json()
+        
+        # Check if transaction was successful
+        if 'hash' not in tx_data:
+            error_msg = tx_data.get('error', 'Unknown error occurred')
+            return None, f"Transaction failed: {error_msg}"
+        
         return tx_data['hash'], None
+        
+    except requests.exceptions.HTTPError as e:
+        try:
+            error_data = e.response.json()
+            error_msg = error_data.get('error', str(e))
+        except:
+            error_msg = str(e)
+        print(f"HTTP error sending withdrawal: {error_msg}")
+        return None, f"HTTP error: {error_msg}"
     except Exception as e:
         print(f"Error sending withdrawal: {str(e)}")
         return None, str(e)
@@ -393,7 +496,7 @@ class TipView(discord.ui.View):
 
     @discord.ui.button(label="10% Tip", style=discord.ButtonStyle.primary)
     async def tip_10(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.wwinner.id:
+        if interaction.user.id != self.winner.id:
             await interaction.response.send_message("❌ Only the winner can select a tip!", ephemeral=True)
             return
         self.tip_percentage = 10
